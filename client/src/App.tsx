@@ -37,23 +37,23 @@ function App() {
   return (
     <div className="min-h-screen bg-pink-50 p-6">
       <div className="mx-auto max-w-3xl rounded-2xl bg-white p-6 shadow">
-        <h1 className="mb-4 text-2xl font-bold text-pink-600">StitchLog</h1>
- 
-        <Select value={year.toString()} onValueChange={(value) => setYear(Number(value))}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select year" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {years.map((year) => (
-                <SelectItem key={year} value={year.toString()}>
-                  {year}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-
+        <h1>StitchLog</h1>
+        <div  className="flex justify-center p-6">
+          <Select value={year.toString()} onValueChange={(value) => setYear(Number(value))}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select year" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {years.map((year) => (
+                  <SelectItem key={year} value={year.toString()}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
         {loading && <p>Loading...</p>}
         {error && <p className="text-red-500">{error}</p>}
 
