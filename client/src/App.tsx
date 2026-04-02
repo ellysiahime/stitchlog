@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button"; 
 import { RefreshCw } from "lucide-react"
+import { Heatmap } from "@/components/heatmap/Heatmap";
 
 function App() {
   const [entries, setEntries] = useState<StitchEntry[]>([]);
@@ -52,9 +53,11 @@ function App() {
     }
   }
 
+  
+
   return (
-    <div className="min-h-screen bg-pink-50 p-6">
-      <div className="mx-auto max-w-3xl rounded-2xl bg-white p-6 shadow">
+    <div className="min-h-screen">
+      <div className="mx-auto p-6">
         <h1>StitchLog</h1>
         <div  className="flex justify-center p-6 gap-2">
           <Select value={year.toString()} onValueChange={(value) => setYear(Number(value))}>
@@ -82,13 +85,11 @@ function App() {
 
         {!loading && !error && (
           <div>
-            <p className="mb-2 text-sm text-gray-600">
-              Entries found: {entries.length}
+            <p className="mb-4 text-sm text-gray-600">
+              {entries.length} stitching session in {year}
             </p>
 
-            <pre className="overflow-auto rounded-lg bg-gray-100 p-4 text-xs">
-              {JSON.stringify(entries.slice(0, 20), null, 2)}
-            </pre>
+            <Heatmap entries={entries} year={year} />
           </div>
         )}
       </div>
