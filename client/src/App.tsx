@@ -10,7 +10,9 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button"; 
 import { RefreshCw } from "lucide-react"
-import { Heatmap } from "@/components/heatmap/Heatmap";
+import { Heatmap } from "@/components/layout/Heatmap";
+import { StatCard } from "@/components/layout/StatCard";
+import { calculateStitchStats } from "@/utils/stats";
 
 function App() {
   const [entries, setEntries] = useState<StitchEntry[]>([]);
@@ -53,43 +55,61 @@ function App() {
     }
   }
 
-  
+  const stats = calculateStitchStats(entries);
 
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto p-6">
-        <h1>StitchLog</h1>
-        <div  className="flex justify-center p-6 gap-2">
-          <Select value={year.toString()} onValueChange={(value) => setYear(Number(value))}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select year" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {years.map((year) => (
-                  <SelectItem key={year} value={year.toString()}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-            {year === currentYear && ( // Show the Sync button only if the selected year is the current year
-              <Button variant="outline" onClick={handleSync} size="icon" aria-label="Submit">
+    <div className="min-h-screen bg-gradient-to-b from-pink-50 via-white to-white">
+      <div className="mx-auto max-w-6xl p-6">
+        <h1 className="text-center text-4xl font-bold bg-gradient-to-r from-pink-400 to-purple-500 bg-clip-text text-transparent">
+          StitchLog
+        </h1>
+  
+        <div className="mt-6 flex flex-col gap-4 justify-center">
+          
+  
+          <div className="flex justify-center gap-2">
+            {year === currentYear && (
+              <Button
+                variant="outline"
+                className="bg-white"
+                onClick={handleSync}
+                size="icon"
+                aria-label="Sync from Notion"
+              >
                 <RefreshCw />
               </Button>
             )}
+  
+            <Select value={year.toString()} onValueChange={(value) => setYear(Number(value))}>
+              <SelectTrigger className="w-[180px] bg-white">
+                <SelectValue placeholder="Select year" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {years.map((year) => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        {loading && <p>Loading...</p>}
-        {error && <p className="text-red-500">{error}</p>}
-
+        {loading && <div className="mt-10"><p>Loading...</p></div>}
+        {error && <div className="mt-10"><p className="text-red-500">{error}</p></div>}
         {!loading && !error && (
-          <div>
-            <p className="mb-4 text-sm text-gray-600">
-              {entries.length} stitching session in {year}
-            </p>
+          <div className="mt-6 flex justify-center">
+            <div className="inline-flex max-w-full flex-col">
+              <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+                <StatCard label="Sessions" value={stats.totalSessions} />
+                <StatCard label="Days Stitched" value={stats.totalDaysStitched} />
+                <StatCard label="Current Streak" value={`🔥 ${stats.currentStreak}`} />
+                <StatCard label="Longest Streak" value={`🏆 ${stats.longestStreak}`} />
+              </div>
 
-            <Heatmap entries={entries} year={year} />
+              <Heatmap entries={entries} year={year} />
+            </div>
           </div>
         )}
       </div>
