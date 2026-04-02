@@ -1,7 +1,11 @@
 import express from "express";
 import cors from "cors";
 import notionRouter from "./routes/notion";
-import stitchesRouter from "./routes/stitches";
+import { connectDB } from "./lib/mongodb";
+import testMongoRoute from "./routes/testMongo";
+import syncStitchesRoute from "./routes/syncStitches";
+import stitchesRoute from "./routes/stitches";
+
 
 const app = express();
 
@@ -18,6 +22,12 @@ app.get("/api/health", (_req, res) => {
 
 app.use(notionRouter);
 
-app.use(stitchesRouter);
+connectDB();
+
+app.use("/api", testMongoRoute);
+
+app.use("/api", syncStitchesRoute);
+
+app.use("/api", stitchesRoute);
 
 export default app;
