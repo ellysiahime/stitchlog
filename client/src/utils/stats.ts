@@ -32,9 +32,10 @@ type StitchEntry = {
   
     const dateSet = new Set(dates);
     const today = startOfLocalDay(new Date());
+    const yesterday = addDays(today, -1);
   
     let streak = 0;
-    let cursor = today;
+    let cursor = dateSet.has(formatLocalDate(today)) ? today : yesterday;
   
     while (dateSet.has(formatLocalDate(cursor))) {
       streak++;
