@@ -5,6 +5,7 @@ import { connectDB } from "./lib/mongodb";
 import testMongoRoute from "./routes/testMongo";
 import syncStitchesRoute from "./routes/syncStitches";
 import stitchesRoute from "./routes/stitches";
+import notionCollectionsRoute from "./routes/notionCollections";
 
 
 const app = express();
@@ -29,5 +30,7 @@ app.use("/api", testMongoRoute);
 app.use("/api", syncStitchesRoute);
 
 app.use("/api", stitchesRoute);
+
+app.use("/api", notionCollectionsRoute);
 
 export default app;
