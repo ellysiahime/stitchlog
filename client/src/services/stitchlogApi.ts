@@ -2,12 +2,17 @@ export type StitchEntry = {
   date: string;
 };
 
+export type FetchStitchesResponse = {
+  entries: StitchEntry[];
+  lastSyncDate: string | null;
+};
+
 export type SyncStitchesResponse = {
   success: boolean;
   count: number;
 };
 
-export async function fetchStitches(year: number): Promise<StitchEntry[]> {
+export async function fetchStitches(year: number): Promise<FetchStitchesResponse> {
   const response = await fetch(`/api/stitches?year=${year}`);
 
   if (!response.ok) {

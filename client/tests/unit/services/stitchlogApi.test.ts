@@ -7,7 +7,10 @@ describe("stitchlogApi", () => {
   });
 
   it("fetches stitches for a selected year", async () => {
-    const responsePayload = [{ date: "2026-04-16" }];
+    const responsePayload = {
+      entries: [{ date: "2026-04-16" }],
+      lastSyncDate: "2026-04-21T00:00:00.000Z",
+    };
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       json: async () => responsePayload,

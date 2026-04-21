@@ -11,10 +11,11 @@ import {
     type StitchEntry,
   } from "@/utils/heatmap";
   
-  type HeatmapProps = {
-    entries: StitchEntry[];
-    year: number;
-  };
+type HeatmapProps = {
+  entries: StitchEntry[];
+  year: number;
+  lastSyncDate: string | null;
+};
   
   const LEVEL_STYLES: Record<0 | 1 | 2 | 3 | 4, string> = {
     0: "bg-zinc-200",
@@ -40,8 +41,24 @@ import {
   }
   
   const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  function formatLastSyncDate(dateString: string) {
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(new Date(dateString));
+  }
+
+  function formatLegendLabel(level: 0 | 1 | 2 | 3 | 4) {
+    if (level === 4) {
+      return "4+ entries";
+    }
+
+    return `${level} ${level === 1 ? "entry" : "entries"}`;
+  }
   
-  export function Heatmap({ entries, year }: HeatmapProps) {
+  export function Heatmap({ entries, year, lastSyncDate }: HeatmapProps) {
     const days = generateYearDays(year, entries);
     const weeks = groupDaysIntoWeeks(days);
     const monthLabels = getMonthLabels(weeks);
@@ -50,7 +67,7 @@ import {
       <TooltipProvider>
         <div className="w-full overflow-x-auto">
           <div className="inline-block min-w-max rounded-2xl border bg-white p-4 shadow-sm">
-            <div className="mb-2 grid grid-flow-col auto-cols-[14px] gap-1 pl-8 text-[10px] text-muted-foreground">
+            <div className="mb-2 grid grid-flow-col auto-cols-[14px] gap-1 pl-8 text-[14px] text-muted-foreground">
               {monthLabels.map((label, index) => (
                 <div key={`${label}-${index}`} className="h-4 overflow-visible whitespace-nowrap">
                   {label}
@@ -59,7 +76,7 @@ import {
             </div>
   
             <div className="flex gap-2">
-              <div className="grid grid-rows-7 gap-1 pt-[2px] text-[10px] text-muted-foreground">
+              <div className="grid grid-rows-7 gap-1 pt-[2px] text-[14px] text-muted-foreground">
                 {WEEKDAY_LABELS.map((label, index) => (
                   <div key={index} className="flex h-[14px] items-center justify-end pr-1">
                     {label}
@@ -87,8 +104,8 @@ import {
                           </TooltipTrigger>
   
                           {!isEmpty && (
-                            <TooltipContent side="top" className="rounded-xl">
-                              <p className="text-xs">
+                            <TooltipContent side="top" className="rounded-lg">
+                              <p className="text-[12px]">
                                 <span className="font-medium">{day.count}</span>{" "}
                                 {day.count === 1 ? "entry" : "entries"} on {formatDateWithOrdinal(day.date)}
                               </p>
@@ -102,15 +119,32 @@ import {
               </div>
             </div>
   
-            <div className="mt-4 flex items-center justify-end gap-2 text-[11px] text-muted-foreground">
-              <span>Less</span>
-              {[0, 1, 2, 3, 4].map((level) => (
-                <div
-                  key={level}
-                  className={`h-[12px] w-[12px] rounded-[3px] ${LEVEL_STYLES[level as 0 | 1 | 2 | 3 | 4]}`}
-                />
-              ))}
-              <span>More</span>
+            <div className="flex justify-between">
+              <div className="mt-4 flex ">
+                {lastSyncDate && (
+                  <p className="mt-2 text-right text-[14px] text-muted-foreground">
+                    Last Sync on {formatLastSyncDate(lastSyncDate)}
+                  </p>
+                )}
+              </div>
+              <div className="mt-4 flex items-center gap-2 text-[14px] text-muted-foreground">
+                <span>Less</span>
+                {[0, 1, 2, 3, 4].map((level) => (
+                  <Tooltip key={level}>
+                    <TooltipTrigger>
+                      <div
+                        className={`h-[12px] w-[12px] rounded-[3px] ${LEVEL_STYLES[level as 0 | 1 | 2 | 3 | 4]}`}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="rounded-lg">
+                      <p className="text-[12px]">
+                        {formatLegendLabel(level as 0 | 1 | 2 | 3 | 4)}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+                <span>More</span>
+              </div>
             </div>
           </div>
         </div>

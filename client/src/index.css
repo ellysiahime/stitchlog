@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Satisfy&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Infant:ital,wght@1,500&family=Satisfy&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -11,6 +11,12 @@
   font-family: "Satisfy", cursive;
   font-weight: 400;
   font-style: normal;
+}
+.cormorant-infant-italic {
+  font-family: "Cormorant Infant", serif;
+  font-optical-sizing: auto;
+  font-weight: 500;
+  font-style: italic;
 }
 
 :root {
@@ -26,11 +32,11 @@
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
-  --sans: satisfy, 'Segoe UI', Roboto, sans-serif;
+  --sans: Cormorant Infant, 'Segoe UI', Roboto, sans-serif;
   --heading: satisfy, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
+  font: 24px/145% var(--sans);
   letter-spacing: 0.18px;
   color-scheme: light dark;
   color: var(--text);

@@ -19,7 +19,12 @@ router.get("/stitches", async (req, res) => {
       .sort({ date: 1 }) 
       .toArray();
 
-    res.json(data);
+    const lastSyncedEntry = await collection.find({ year }).sort({ updatedAt: -1 }).limit(1).next();
+
+    res.json({
+      entries: data,
+      lastSyncDate: lastSyncedEntry?.updatedAt ?? null,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to fetch stitches" });

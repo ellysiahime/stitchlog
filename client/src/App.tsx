@@ -16,11 +16,13 @@ import { calculateStitchStats } from "@/utils/stats";
 
 function App() {
   const [entries, setEntries] = useState<StitchEntry[]>([]);
+  const [lastSyncDate, setLastSyncDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const currentYear = new Date().getFullYear(); 
   const years = [2026, 2025, 2024];
   const [year, setYear] = useState(currentYear);
+  const visibleLastSyncDate = year === currentYear ? lastSyncDate : null;
   
   useEffect(() => {
     async function loadData() {
@@ -28,7 +30,8 @@ function App() {
         setLoading(true);
         setError("");
         const data = await fetchStitches(year);
-        setEntries(data);
+        setEntries(data.entries);
+        setLastSyncDate(data.lastSyncDate);
       } catch (err) {
         setError("Failed to load stitches");
         console.error(err);
@@ -46,7 +49,8 @@ function App() {
       setError("");
       await syncStitches(year);
       const data = await fetchStitches(year);
-      setEntries(data);
+      setEntries(data.entries);
+      setLastSyncDate(data.lastSyncDate);
     } catch (err) {
       setError("Failed to sync stitches");
       console.error(err);
@@ -108,7 +112,7 @@ function App() {
                 <StatCard label="Longest Streak" value={`🏆 ${stats.longestStreak}`} />
               </div>
 
-              <Heatmap entries={entries} year={year} />
+              <Heatmap entries={entries} year={year} lastSyncDate={visibleLastSyncDate} />
             </div>
           </div>
         )}
