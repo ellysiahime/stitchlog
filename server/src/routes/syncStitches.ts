@@ -58,6 +58,8 @@ router.post("/sync/stitches", async (req, res) => {
       nextCursor = response.has_more ? response.next_cursor ?? undefined : undefined;
     } while (nextCursor);
 
+    const syncedAt = new Date();
+
     const filtered: StitchEntry[] = allResults
       .map((page) => {
         if (
@@ -94,10 +96,12 @@ router.post("/sync/stitches", async (req, res) => {
           notionPageId: String(notionPageId),
           date,
           year,
-          updatedAt: new Date(),
+          updatedAt: syncedAt,
         };
       })
       .filter((entry): entry is StitchEntry => entry !== null);
+
+    const syncedNotionPageIds = filtered.map((entry) => entry.notionPageId);
 
     for (const entry of filtered) {
       await collection.updateOne(
@@ -109,16 +113,24 @@ router.post("/sync/stitches", async (req, res) => {
             updatedAt: entry.updatedAt,
           },
           $setOnInsert: {
-            createdAt: new Date(),
+            createdAt: syncedAt,
           },
         },
         { upsert: true }
       );
     }
 
+    const deletedResult = await collection.deleteMany(
+      {
+        year,
+        notionPageId: { $nin: syncedNotionPageIds },
+      }
+    );
+
     res.json({
       success: true,
       count: filtered.length,
+      deletedCount: deletedResult.deletedCount,
     });
   } catch (error) {
     console.error(error);
