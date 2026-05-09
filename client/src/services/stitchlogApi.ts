@@ -45,6 +45,21 @@ export type SyncCollectionResponse = {
   dataSourceId?: string;
 };
 
+export type AiChatSource = {
+  notionPageId: string;
+  title: string | null;
+  url: string | null;
+  status: string | null;
+  fabricCount: string | null;
+  type: string | null;
+  score?: number;
+};
+
+export type AiChatResponse = {
+  answer: string;
+  sources: AiChatSource[];
+};
+
 async function readJson<T>(response: Response, message: string): Promise<T> {
   if (!response.ok) {
     throw new Error(message);
@@ -93,4 +108,16 @@ export async function syncWipgo(): Promise<SyncCollectionResponse> {
   });
 
   return readJson(response, "Failed to sync WIPGO");
+}
+
+export async function askAiChat(message: string): Promise<AiChatResponse> {
+  const response = await fetch("/api/ai/chat", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ message }),
+  });
+
+  return readJson(response, "Failed to get AI chat response");
 }
