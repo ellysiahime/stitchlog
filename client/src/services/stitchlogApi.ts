@@ -18,6 +18,7 @@ export type SyncedNotionEntry = {
   notionPageId: string;
   title: string | null;
   url: string | null;
+  progressPicsUrl?: string | null;
   archived: boolean;
   inTrash: boolean;
   createdTime: string | null;

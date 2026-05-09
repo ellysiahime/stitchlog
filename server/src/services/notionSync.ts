@@ -96,12 +96,30 @@ function getPlainText(items?: NotionRichTextItem[]) {
   return items.map((item) => item.plain_text ?? "").join("").trim() || null;
 }
 
+function normalizeOptionName(name?: string) {
+  const trimmedName = name?.trim();
+
+  if (!trimmedName) {
+    return null;
+  }
+
+  if (trimmedName.toLowerCase() === "finish! 🛎") {
+    return "Finished";
+  }
+
+  if (trimmedName.toLowerCase() === "finished") {
+    return "Finished";
+  }
+
+  return trimmedName;
+}
+
 function normalizeOption(option?: NotionSelectOption | null) {
   if (!option) return null;
 
   return {
     id: option.id ?? null,
-    name: option.name ?? null,
+    name: normalizeOptionName(option.name),
     color: option.color ?? null,
   };
 }
