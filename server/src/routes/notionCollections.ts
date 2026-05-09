@@ -9,6 +9,7 @@ type CollectionConfig = {
   collectionName: string;
   databaseId?: string;
   dataSourceId?: string;
+  includePageNotes?: boolean;
 };
 
 const notionCollections: Record<string, CollectionConfig> = {
@@ -16,6 +17,7 @@ const notionCollections: Record<string, CollectionConfig> = {
     collectionName: "projects",
     databaseId: env.notionProjectsDatabaseId,
     dataSourceId: env.notionProjectsDataSourceId,
+    includePageNotes: true,
   },
   wipgo: {
     collectionName: "wipgo",
@@ -73,6 +75,7 @@ async function syncCollection(resource: keyof typeof notionCollections, res: Res
       collection,
       dataSourceId: config.dataSourceId,
       databaseId: config.databaseId,
+      includePageNotes: config.includePageNotes,
     });
 
     return res.json(result);

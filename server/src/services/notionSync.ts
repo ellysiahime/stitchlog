@@ -16,6 +16,18 @@ type NotionDateValue = {
   time_zone?: string | null;
 };
 
+type NotionFileValue = {
+  name?: string;
+  type?: string;
+  file?: {
+    url?: string;
+    expiry_time?: string;
+  };
+  external?: {
+    url?: string;
+  };
+};
+
 type NotionProperty = {
   type?: string;
   title?: NotionRichTextItem[];
@@ -28,6 +40,7 @@ type NotionProperty = {
   select?: NotionSelectOption | null;
   status?: NotionSelectOption | null;
   multi_select?: NotionSelectOption[];
+  files?: NotionFileValue[];
   relation?: Array<{ id?: string }>;
   date?: NotionDateValue | null;
   formula?: {
@@ -73,6 +86,8 @@ export type SyncedNotionDocument = {
   lastEditedTime: string | null;
   properties: Record<string, unknown>;
   relationIds: Record<string, string[]>;
+  notes: string | null | undefined;
+  progressPicsUrl: string | null | undefined;
   updatedAt: Date;
 };
 
@@ -99,6 +114,20 @@ function normalizeDate(date?: NotionDateValue | null) {
     end: date.end ?? null,
     timeZone: date.time_zone ?? null,
   };
+}
+
+function normalizeFiles(files?: NotionFileValue[]) {
+  if (!files?.length) return [];
+
+  return files.map((file) => ({
+    name: file.name ?? null,
+    type: file.type ?? null,
+    url:
+      file.type === "external"
+        ? file.external?.url ?? null
+        : file.file?.url ?? null,
+    expiryTime: file.file?.expiry_time ?? null,
+  }));
 }
 
 function normalizeFormulaValue(property: NotionProperty) {
@@ -142,6 +171,8 @@ function normalizeProperty(property: NotionProperty): unknown {
       return normalizeOption(property.status);
     case "multi_select":
       return (property.multi_select ?? []).map((option) => normalizeOption(option));
+    case "files":
+      return normalizeFiles(property.files);
     case "relation":
       return (property.relation ?? [])
         .map((relation) => relation.id)
@@ -207,6 +238,45 @@ async function queryAllPages(dataSourceId: string) {
   return results;
 }
 
+function extractProgressPicsUrl(markdown: string) {
+  const match = markdown.match(
+    /###\s*Progress\s*Pic\s*<database\s+url="([^"]+)"[^>]*>\s*<\/database>/i
+  );
+
+  return match?.[1]?.trim() || null;
+}
+
+function normalizeNotes(markdown: string) {
+  const withoutImages = markdown
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/<img[^>]*>/gi, "")
+    .replace(/###\s*Progress\s*Pic\s*<database\s+url="[^"]+"[^>]*>\s*<\/database>/gi, "")
+    .replace(/###\s*Progress\s*Pic\s*<empty-block\s*\/>/gi, "")
+    .replace(/###\s*Notes\s*/gi, "");
+
+  const cleaned = withoutImages
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return cleaned || null;
+}
+
+async function getPageNotes(pageId: string) {
+  const response = await notion.pages.retrieveMarkdown({
+    page_id: pageId,
+  });
+
+  const markdown = response.markdown ?? "";
+
+  return {
+    notes: normalizeNotes(markdown),
+    progressPicsUrl: extractProgressPicsUrl(markdown),
+  };
+}
+
 export async function resolveDataSourceId({
   dataSourceId,
   databaseId,
@@ -239,6 +309,7 @@ export async function syncNotionCollection({
   collection,
   dataSourceId,
   databaseId,
+  includePageNotes = false,
 }: {
   collection: {
     updateOne: (...args: unknown[]) => Promise<unknown>;
@@ -246,6 +317,7 @@ export async function syncNotionCollection({
   };
   dataSourceId?: string;
   databaseId?: string;
+  includePageNotes?: boolean;
 }) {
   const resolvedDataSourceId = await resolveDataSourceId({
     dataSourceId,
@@ -254,28 +326,33 @@ export async function syncNotionCollection({
   const pages = await queryAllPages(resolvedDataSourceId);
   const syncedAt = new Date();
 
-  const documents: SyncedNotionDocument[] = pages
-    .map((page) => {
-      if (!page.id || !page.properties) {
-        return null;
-      }
+  const documents = (
+    await Promise.all(
+      pages.map(async (page) => {
+        if (!page.id || !page.properties) {
+          return null;
+        }
 
-      const { normalized, relationIds, title } = normalizeProperties(page.properties);
+        const { normalized, relationIds, title } = normalizeProperties(page.properties);
+        const pageContent = includePageNotes ? await getPageNotes(page.id) : null;
 
-      return {
-        notionPageId: page.id,
-        title,
-        url: page.url ?? null,
-        archived: page.archived ?? false,
-        inTrash: page.in_trash ?? false,
-        createdTime: page.created_time ?? null,
-        lastEditedTime: page.last_edited_time ?? null,
-        properties: normalized,
-        relationIds,
-        updatedAt: syncedAt,
-      };
-    })
-    .filter((document): document is SyncedNotionDocument => document !== null);
+        return {
+          notionPageId: page.id,
+          title,
+          url: page.url ?? null,
+          archived: page.archived ?? false,
+          inTrash: page.in_trash ?? false,
+          createdTime: page.created_time ?? null,
+          lastEditedTime: page.last_edited_time ?? null,
+          properties: normalized,
+          relationIds,
+          notes: pageContent?.notes,
+          progressPicsUrl: pageContent?.progressPicsUrl,
+          updatedAt: syncedAt,
+        };
+      })
+    )
+  ).filter((document): document is SyncedNotionDocument => document !== null);
 
   const syncedIds = documents.map((document) => document.notionPageId);
 
