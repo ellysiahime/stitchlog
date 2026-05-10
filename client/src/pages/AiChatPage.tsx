@@ -139,6 +139,15 @@ export function AiChatPage() {
                         <p className="text-sm font-semibold text-slate-700">
                           {source.title ?? "Untitled project"}
                         </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {[
+                            source.status,
+                            source.fabricCount,
+                            source.categories.length > 0 ? source.categories.join(", ") : null,
+                          ]
+                            .filter((value): value is string => Boolean(value))
+                            .join(" · ")}
+                        </p>
                         {source.url && (
                           <a
                             href={source.url}

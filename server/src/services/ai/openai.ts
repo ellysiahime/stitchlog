@@ -4,7 +4,7 @@ import type { ProjectRagDocument } from "./projectRag";
 
 type ChatSource = Pick<
   ProjectRagDocument,
-  "notionPageId" | "title" | "url" | "status" | "fabricCount" | "type"
+  "notionPageId" | "title" | "url" | "status" | "fabricCount" | "categories"
 > & {
   score?: number;
 };
@@ -83,6 +83,9 @@ export async function generateChatAnswer(question: string, projects: ProjectRagD
               "- BS = Barely Start. This is usually mentioned in notes and is not necessarily the actual project status.\n" +
               "- NS = New Start. This is usually mentioned in notes and is not necessarily the actual project status.\n\n" +
               "Behavior rules:\n" +
+              "- If the retrieved context has already been narrowed by exact metadata such as category, designer, status, fabric count, type, or completion state, treat those constraints as authoritative and do not broaden beyond them.\n" +
+              "- Interpret 'not yet finished', 'unfinished', 'project to work on', and similar phrasing as WIP-style intent. Those usually mean projects that are not finished yet.\n" +
+              "- For 'project to work on' or general recommendation phrasing, prefer WIP-style candidates such as Active, Passive, Ready, or KIP unless the user explicitly asks for finished projects.\n" +
               "- Do not recommend UFO projects by default unless the user explicitly asks for abandoned, inactive, or unfinished-object projects.\n" +
               "- If the type is mentioned such as counted, stamped, or blackwork, then only recommend projects in that type.\n" +
               "- Prefer Active, Passive, Ready, or KIP projects when the user asks for recommendations.\n" +
@@ -111,7 +114,7 @@ export async function generateChatAnswer(question: string, projects: ProjectRagD
     url: project.url,
     status: project.status,
     fabricCount: project.fabricCount,
-    type: project.type,
+    categories: project.categories,
   }));
 
   return {

@@ -51,7 +51,7 @@ export type AiChatSource = {
   url: string | null;
   status: string | null;
   fabricCount: string | null;
-  type: string | null;
+  categories: string[];
   score?: number;
 };
 

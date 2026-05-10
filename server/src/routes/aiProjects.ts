@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { env } from "../config/env";
 import { connectDB } from "../lib/mongodb";
-import { type ProjectRagDocument } from "../services/ai/projectRag";
+import { normalizeMetadataValue, type ProjectRagDocument } from "../services/ai/projectRag";
 import { embedText, generateChatAnswer } from "../services/ai/openai";
 import { reindexProjectRag } from "../services/ai/reindexProjectRag";
 
@@ -12,28 +12,57 @@ type ProjectRagSearchResult = ProjectRagDocument & {
 };
 
 type ParsedProjectQuery = {
-  fabricCount: string | null;
+  fabricCountKey: string | null;
   statuses: string[];
-  type: string | null;
+  statusKeys: string[];
+  typeKey: string | null;
+  categoryKeys: string[];
+  designerKeys: string[];
+  completionState: "finished" | "in-progress" | "ready" | null;
   isRecommendation: boolean;
-  shouldPreferStructuredLookup: boolean;
+  hasMetadataFilters: boolean;
 };
 
-function escapeRegex(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function mapStatusKey(status: string) {
+  if (status === "ffo") {
+    return "ffo";
+  }
+
+  if (status === "finished") {
+    return "finished";
+  }
+
+  return normalizeMetadataValue(status);
 }
 
-function parseProjectQuery(message: string): ParsedProjectQuery {
+function detectUnfinishedIntent(normalizedMessage: string) {
+  return (
+    /\bnot yet finished\b/i.test(normalizedMessage) ||
+    /\bnot finished\b/i.test(normalizedMessage) ||
+    /\bunfinished\b/i.test(normalizedMessage) ||
+    /\bstill working on\b/i.test(normalizedMessage) ||
+    /\bto work on\b/i.test(normalizedMessage) ||
+    /\bwork on\b/i.test(normalizedMessage) ||
+    /\bwip\b/i.test(normalizedMessage)
+  );
+}
+
+function parseProjectQuery(message: string, metadataDocuments: ProjectRagDocument[]): ParsedProjectQuery {
   const normalizedMessage = message.toLowerCase();
   const fabricMatch = normalizedMessage.match(/\b(\d{2})\s*ct\b/i);
+  const unfinishedIntent = detectUnfinishedIntent(normalizedMessage);
+  const finishedIntent =
+    !unfinishedIntent &&
+    (/\bfinished\b/i.test(normalizedMessage) ||
+      /\bcompleted\b/i.test(normalizedMessage) ||
+      /\bffo\b/i.test(normalizedMessage));
   const detectedStatuses = [
     "active",
     "passive",
     "ready",
     "kip",
     "ufo",
-    "finished",
-    "ffo",
+    ...(finishedIntent ? ["finished", "ffo"] : []),
   ].filter((status) => new RegExp(`\\b${status}\\b`, "i").test(normalizedMessage));
   const detectedType = ["counted", "stamped", "blackwork"].find((type) =>
     new RegExp(`\\b${type}\\b`, "i").test(normalizedMessage)
@@ -42,71 +71,104 @@ function parseProjectQuery(message: string): ParsedProjectQuery {
     /\brecommend\b/i.test(normalizedMessage) ||
     /\bsuggest\b/i.test(normalizedMessage) ||
     /\bwhich project\b/i.test(normalizedMessage) ||
-    /\bwhat project\b/i.test(normalizedMessage);
-  const hasStructuredHints =
-    Boolean(fabricMatch) || detectedStatuses.length > 0 || Boolean(detectedType);
-
-  let statuses = detectedStatuses.map((status) =>
-    status === "ffo" ? "FFO" : status === "finished" ? "Finished" : status === "kip" ? "KIP" : status.charAt(0).toUpperCase() + status.slice(1)
+    /\bwhat project\b/i.test(normalizedMessage) ||
+    /\bto work on\b/i.test(normalizedMessage) ||
+    /\bwork on\b/i.test(normalizedMessage);
+  const metadataValueSets = {
+    categoryKeys: [...new Set(metadataDocuments.flatMap((document) => document.categoryKeys ?? []))],
+    designerKeys: [
+      ...new Set(
+        metadataDocuments
+          .map((document) => document.designerKey)
+          .filter((value): value is string => Boolean(value))
+      ),
+    ],
+  };
+  const normalizedQuery = normalizeMetadataValue(message);
+  const categoryKeys = metadataValueSets.categoryKeys.filter((value) =>
+    normalizedQuery.includes(value)
+  );
+  const designerKeys = metadataValueSets.designerKeys.filter((value) =>
+    normalizedQuery.includes(value)
   );
 
-  if (isRecommendation && statuses.length === 0) {
-    statuses = ["Active", "Passive"];
+  let statusKeys = detectedStatuses.map((status) => mapStatusKey(status));
+
+  if (unfinishedIntent) {
+    statusKeys = statusKeys.length > 0 ? statusKeys : ["active", "passive", "ready", "kip"];
+  } else if (isRecommendation && statusKeys.length === 0) {
+    statusKeys = ["active", "passive"];
   }
 
+  const completionState =
+    unfinishedIntent
+      ? "in-progress"
+      : finishedIntent
+      ? "finished"
+      : /\bready\b/i.test(normalizedMessage)
+        ? "ready"
+        : /\bin progress\b/i.test(normalizedMessage) || /\bwork in progress\b/i.test(normalizedMessage)
+          ? "in-progress"
+          : null;
+
+  const statuses = statusKeys.map((status) =>
+    status === "ffo" ? "FFO" : status === "kip" ? "KIP" : status.charAt(0).toUpperCase() + status.slice(1)
+  );
+  const hasMetadataFilters =
+    Boolean(fabricMatch) ||
+    statusKeys.length > 0 ||
+    Boolean(detectedType) ||
+    categoryKeys.length > 0 ||
+    designerKeys.length > 0 ||
+    Boolean(completionState);
+
   return {
-    fabricCount: fabricMatch ? `${fabricMatch[1]}ct` : null,
+    fabricCountKey: fabricMatch ? normalizeMetadataValue(`${fabricMatch[1]}ct`) : null,
     statuses,
-    type: detectedType ? detectedType.charAt(0).toUpperCase() + detectedType.slice(1) : null,
+    statusKeys,
+    typeKey: detectedType ? normalizeMetadataValue(detectedType) : null,
+    categoryKeys,
+    designerKeys,
+    completionState,
     isRecommendation,
-    shouldPreferStructuredLookup: hasStructuredHints || isRecommendation,
+    hasMetadataFilters,
   };
 }
 
-async function findStructuredProjectMatches(
+function cosineSimilarity(left: number[], right: number[]) {
+  if (left.length === 0 || right.length === 0 || left.length !== right.length) {
+    return -1;
+  }
+
+  let dotProduct = 0;
+  let leftMagnitude = 0;
+  let rightMagnitude = 0;
+
+  for (let index = 0; index < left.length; index += 1) {
+    dotProduct += left[index] * right[index];
+    leftMagnitude += left[index] * left[index];
+    rightMagnitude += right[index] * right[index];
+  }
+
+  if (leftMagnitude === 0 || rightMagnitude === 0) {
+    return -1;
+  }
+
+  return dotProduct / (Math.sqrt(leftMagnitude) * Math.sqrt(rightMagnitude));
+}
+
+async function findMetadataFilteredProjectMatches(
   message: string,
   ragCollection: {
-    find: (...args: unknown[]) => {
+    find: (filter?: Record<string, unknown>) => {
       project: (...args: unknown[]) => {
-        sort: (...args: unknown[]) => {
-          limit: (limit: number) => {
-            toArray: () => Promise<unknown[]>;
-          };
-        };
+        toArray: () => Promise<unknown[]>;
       };
     };
   }
 ) {
-  const parsedQuery = parseProjectQuery(message);
-
-  if (!parsedQuery.shouldPreferStructuredLookup) {
-    return [];
-  }
-
-  const filter: Record<string, unknown> = {};
-
-  if (parsedQuery.fabricCount) {
-    filter.fabricCount = {
-      $regex: `^${escapeRegex(parsedQuery.fabricCount)}$`,
-      $options: "i",
-    };
-  }
-
-  if (parsedQuery.statuses.length > 0) {
-    filter.status = {
-      $in: parsedQuery.statuses.map((status) => new RegExp(`^${escapeRegex(status)}$`, "i")),
-    };
-  }
-
-  if (parsedQuery.type) {
-    filter.type = {
-      $regex: `^${escapeRegex(parsedQuery.type)}$`,
-      $options: "i",
-    };
-  }
-
-  return (await ragCollection
-    .find(filter)
+  const metadataDocuments = (await ragCollection
+    .find({})
     .project({
       _id: 0,
       notionPageId: 1,
@@ -125,17 +187,86 @@ async function findStructuredProjectMatches(
       stitchCount: 1,
       type: 1,
       progressPicsUrl: 1,
-      searchText: 1,
+      metadataText: 1,
+      semanticText: 1,
+      designerKey: 1,
+      statusKey: 1,
+      fabricCountKey: 1,
+      typeKey: 1,
+      categoryKeys: 1,
+      completionState: 1,
       embedding: 1,
       updatedAt: 1,
     })
-    .sort({
-      percentComplete: -1,
-      daysStitched: -1,
-      title: 1,
-    })
-    .limit(3)
     .toArray()) as ProjectRagSearchResult[];
+
+  const parsedQuery = parseProjectQuery(message, metadataDocuments);
+
+  if (!parsedQuery.hasMetadataFilters) {
+    return [];
+  }
+
+  const filteredDocuments = metadataDocuments.filter((document) => {
+    if (parsedQuery.fabricCountKey && document.fabricCountKey !== parsedQuery.fabricCountKey) {
+      return false;
+    }
+
+    if (parsedQuery.statusKeys.length > 0 && (!document.statusKey || !parsedQuery.statusKeys.includes(document.statusKey))) {
+      return false;
+    }
+
+    if (parsedQuery.typeKey && document.typeKey !== parsedQuery.typeKey) {
+      return false;
+    }
+
+    if (
+      parsedQuery.categoryKeys.length > 0 &&
+      !parsedQuery.categoryKeys.every((categoryKey) => document.categoryKeys.includes(categoryKey))
+    ) {
+      return false;
+    }
+
+    if (
+      parsedQuery.designerKeys.length > 0 &&
+      (!document.designerKey || !parsedQuery.designerKeys.includes(document.designerKey))
+    ) {
+      return false;
+    }
+
+    if (parsedQuery.completionState && document.completionState !== parsedQuery.completionState) {
+      return false;
+    }
+
+    return true;
+  });
+
+  if (filteredDocuments.length === 0) {
+    return [];
+  }
+
+  const queryEmbedding = await embedText(message);
+
+  return filteredDocuments
+    .map((document) => ({
+      ...document,
+      score: cosineSimilarity(queryEmbedding, document.embedding),
+    }))
+    .sort((leftDocument, rightDocument) => {
+      const scoreDifference = (rightDocument.score ?? -1) - (leftDocument.score ?? -1);
+
+      if (scoreDifference !== 0) {
+        return scoreDifference;
+      }
+
+      const percentDifference = (rightDocument.percentComplete ?? -1) - (leftDocument.percentComplete ?? -1);
+
+      if (percentDifference !== 0) {
+        return percentDifference;
+      }
+
+      return (leftDocument.title ?? "").localeCompare(rightDocument.title ?? "");
+    })
+    .slice(0, 3);
 }
 
 router.post("/ai/projects/reindex", async (_req, res) => {
@@ -157,7 +288,7 @@ router.post("/ai/chat", async (req, res) => {
 
     const db = await connectDB();
     const ragCollection = db.collection(env.mongodbProjectRagCollectionName);
-    const structuredMatches = await findStructuredProjectMatches(message, ragCollection);
+    const structuredMatches = await findMetadataFilteredProjectMatches(message, ragCollection);
 
     const matches =
       structuredMatches.length > 0

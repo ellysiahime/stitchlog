@@ -32,10 +32,21 @@ export type ProjectRagDocument = {
   stitchCount: string | null;
   type: string | null;
   progressPicsUrl: string | null;
-  searchText: string;
+  metadataText: string;
+  semanticText: string;
+  designerKey: string | null;
+  statusKey: string | null;
+  fabricCountKey: string | null;
+  typeKey: string | null;
+  categoryKeys: string[];
+  completionState: "finished" | "in-progress" | "ready" | "unknown";
   embedding: number[];
   updatedAt: Date;
 };
+
+export function normalizeMetadataValue(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
 
 function getStringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -71,27 +82,61 @@ function getOptionNames(value: unknown) {
     .filter((item): item is string => Boolean(item));
 }
 
-function buildSearchText(document: Omit<ProjectRagDocument, "embedding" | "updatedAt">) {
-  const statusMeaning =
-    document.status === "Active"
-      ? "project currently stitching"
-      : document.status === "Passive"
-        ? "project that has not been touched for quite some time"
-        : document.status === "Ready"
-          ? "fully kitted project that is ready to start"
-          : document.status === "UFO"
-            ? "unfinished object, often abandoned or inactive"
-            : document.status === "FFO" || document.status === "Finished"
-              ? "fully finished object"
-              : document.status === "KIP"
-                ? "kit in progress"
-                : null;
+function resolveCompletionState(document: {
+  status: string | null;
+  finishedDate: string | null;
+  percentComplete: number | null;
+  startDate: string | null;
+}) {
+  const statusKey = document.status ? normalizeMetadataValue(document.status) : null;
 
+  if (document.finishedDate || statusKey === "finished" || statusKey === "ffo") {
+    return "finished" as const;
+  }
+
+  if (statusKey === "ready") {
+    return "ready" as const;
+  }
+
+  if (document.startDate || (document.percentComplete !== null && document.percentComplete > 0)) {
+    return "in-progress" as const;
+  }
+
+  return "unknown" as const;
+}
+
+function buildSemanticSearchText(
+  document: Pick<
+    ProjectRagDocument,
+    | "title"
+    | "notes"
+    | "fabricDetails"
+    | "stitchCount"
+    | "percentComplete"
+    | "daysStitched"
+    | "startDate"
+    | "finishedDate"
+  >
+) {
+  const lines = [
+    document.title ? `Project Title: ${document.title}` : null,
+    document.fabricDetails ? `Fabric Details: ${document.fabricDetails}` : null,
+    document.stitchCount ? `Stitch Count: ${document.stitchCount}` : null,
+    document.percentComplete !== null ? `Percent Complete: ${document.percentComplete}%` : null,
+    document.daysStitched !== null ? `Days Stitched: ${document.daysStitched}` : null,
+    document.startDate ? `Start Date: ${document.startDate}` : null,
+    document.finishedDate ? `Finished Date: ${document.finishedDate}` : null,
+    document.notes ? `Notes: ${document.notes}` : null,
+  ];
+
+  return lines.filter((line): line is string => Boolean(line)).join("\n");
+}
+
+function buildMetadataText(document: Omit<ProjectRagDocument, "embedding" | "updatedAt">) {
   const lines = [
     document.title ? `Project Title: ${document.title}` : null,
     document.designer ? `Designer: ${document.designer}` : null,
     document.status ? `Status: ${document.status}` : null,
-    statusMeaning ? `Status Meaning: ${statusMeaning}` : null,
     document.type ? `Type: ${document.type}` : null,
     document.fabricCount ? `Fabric Count: ${document.fabricCount}` : null,
     document.fabricDetails ? `Fabric Details: ${document.fabricDetails}` : null,
@@ -101,10 +146,7 @@ function buildSearchText(document: Omit<ProjectRagDocument, "embedding" | "updat
     document.startDate ? `Start Date: ${document.startDate}` : null,
     document.finishedDate ? `Finished Date: ${document.finishedDate}` : null,
     document.categories.length ? `Categories: ${document.categories.join(", ")}` : null,
-    "Glossary: UFO means UnFinished Object. FFO means FullyFinished Object. WIP means Work In Progress. KIP means Kit In Progress.",
-    "Glossary: Active means currently stitching. Passive means not touched for quite some time. Ready means fully kitted and ready to start.",
-    "Glossary: BS means Barely Start, usually mentioned in notes and not necessarily the actual status. NS means New Start, usually mentioned in notes and not necessarily the actual status.",
-    document.notes ? `Notes: ${document.notes}` : null,
+    `Completion State: ${document.completionState}`,
   ];
 
   return lines.filter((line): line is string => Boolean(line)).join("\n");
@@ -130,6 +172,12 @@ export function buildProjectRagDocument(
   const stitchCount = getStringValue(properties["Stitch Count"]);
   const type = getOptionName(properties.Type);
   const progressPicsUrl = getStringValue(source.progressPicsUrl);
+  const completionState = resolveCompletionState({
+    status,
+    finishedDate,
+    percentComplete,
+    startDate,
+  });
 
   const documentWithoutEmbedding = {
     notionPageId: source.notionPageId,
@@ -148,12 +196,20 @@ export function buildProjectRagDocument(
     stitchCount,
     type,
     progressPicsUrl,
-    searchText: "",
+    metadataText: "",
+    semanticText: "",
+    designerKey: designer ? normalizeMetadataValue(designer) : null,
+    statusKey: status ? normalizeMetadataValue(status) : null,
+    fabricCountKey: fabricCount ? normalizeMetadataValue(fabricCount) : null,
+    typeKey: type ? normalizeMetadataValue(type) : null,
+    categoryKeys: categories.map((category) => normalizeMetadataValue(category)),
+    completionState,
     updatedAt,
   };
 
   return {
     ...documentWithoutEmbedding,
-    searchText: buildSearchText(documentWithoutEmbedding),
+    semanticText: buildSemanticSearchText(documentWithoutEmbedding),
+    metadataText: buildMetadataText(documentWithoutEmbedding),
   };
 }

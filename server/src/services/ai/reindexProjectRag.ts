@@ -23,7 +23,7 @@ export async function reindexProjectRag() {
 
   for (const project of projects) {
     const ragDocument = buildProjectRagDocument(project, updatedAt);
-    const embedding = await embedText(ragDocument.searchText);
+    const embedding = await embedText(ragDocument.semanticText);
 
     await ragCollection.updateOne(
       { notionPageId: ragDocument.notionPageId },
