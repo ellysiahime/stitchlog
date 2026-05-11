@@ -6,6 +6,7 @@ import testMongoRoute from "./routes/testMongo";
 import syncStitchesRoute from "./routes/syncStitches";
 import stitchesRoute from "./routes/stitches";
 import notionCollectionsRoute from "./routes/notionCollections";
+import aiProjectsRoute from "./routes/aiProjects";
 
 
 const app = express();
@@ -32,5 +33,7 @@ app.use("/api", syncStitchesRoute);
 app.use("/api", stitchesRoute);
 
 app.use("/api", notionCollectionsRoute);
+
+app.use("/api", aiProjectsRoute);
 
 export default app;

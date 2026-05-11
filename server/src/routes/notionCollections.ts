@@ -1,6 +1,7 @@
 import { type Response, Router } from "express";
 import { env } from "../config/env";
 import { connectDB } from "../lib/mongodb";
+import { reindexProjectRag } from "../services/ai/reindexProjectRag";
 import { syncNotionCollection } from "../services/notionSync";
 
 const router = Router();
@@ -77,8 +78,12 @@ async function syncCollection(resource: keyof typeof notionCollections, res: Res
       databaseId: config.databaseId,
       includePageNotes: config.includePageNotes,
     });
+    const reindexResult = resource === "projects" ? await reindexProjectRag() : null;
 
-    return res.json(result);
+    return res.json({
+      ...result,
+      reindex: reindexResult,
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: "Sync failed" });
