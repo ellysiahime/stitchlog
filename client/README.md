@@ -1,73 +1,50 @@
-# React + TypeScript + Vite
+# StitchLog Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This frontend is a Vite + React dashboard for viewing stitching activity, browsing projects, checking a WIPGO board, and chatting with the project library through the API.
 
-Currently, two official plugins are available:
+## Current features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Year-based stitch heatmap with session and streak statistics
+- Project library view with status badges, Notion links, and progress picture links
+- WIPGO 5x5 board assembled from WIPGO entries plus related project records
+- AI chat interface for project-aware questions and recommendations
+- Manual sync actions for heatmap, projects, and WIPGO data
 
-## React Compiler
+## Tech stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React 19
+- TypeScript
+- Vite
+- Tailwind CSS v4
+- Base UI / shadcn-style primitives
+- Vitest + Testing Library
 
-## Expanding the ESLint configuration
+## Frontend architecture
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- `src/routes/AppRouter.tsx`: lightweight hash-based route resolution.
+- `src/components/layout/`: shell, stat cards, and heatmap presentation pieces.
+- `src/pages/`: page-level screens for heatmap, projects, WIPGO, and AI chat.
+- `src/services/stitchlogApi.ts`: all API calls and shared response types.
+- `src/utils/`: client-side formatting and derived view-model logic.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Why it is structured this way
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- Hash routing avoids extra server-side SPA routing setup and is enough for this dashboard.
+- API calls are centralized so the pages do not duplicate endpoint details or response typing.
+- Data transformation for Notion-derived records lives in utility functions.
+- The shell component owns the shared navigation and visual framing so each page can stay focused on one feature area.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Important implementation notes
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+- The dev server proxies `/api` to `http://localhost:4000` via `vite.config.ts`.
+- The home page only shows the sync action for the current year.
+- The WIPGO page depends on relation IDs from synced Notion data to map tiles back to projects.
+- The AI page submits questions to the server and renders the returned answer and matched project sources. Retrieval, filtering, embeddings, and vector search all happen on the server.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Testing
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+Current test coverage focuses on the client logic that is easiest to regress quietly:
+
+- API service helpers
+- heatmap utilities
+- stats utilities
