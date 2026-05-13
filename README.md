@@ -2,6 +2,12 @@
 
 StitchLog is a personal cross-stitch dashboard built as a small full-stack app. It pulls stitching data from Notion, caches and reshapes it in MongoDB, and presents it through a React dashboard with an optional AI assistant for project discovery and recommendations.
 
+## Screenshots
+
+<img src="./screenshots/stitchlog_aichat.png" width="900" />
+<img src="./screenshots/stitchlog_heatmap.png" width="900" />
+<img src="./screenshots/stitchlog_projects.png" width="900" />
+
 ## What the app currently does
 
 - Shows a yearly stitch heatmap with session counts, stitched days, and streak stats.
